@@ -1,1 +1,60 @@
+name: CRASHVERSE Android APK
 
+on:
+workflow_dispatch:
+push:
+branches:
+- main
+paths:
+- 'crashverse-dev-build-3-input-config-fix.zip'
+- '.github/workflows/build-crashverse.yml'
+
+permissions:
+contents: read
+
+jobs:
+build:
+name: Build CRASHVERSE for Android
+runs-on: ubuntu-22.04
+
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
+
+  - name: Extract Unity project
+    shell: bash
+    run: |
+      set -euo pipefail
+      unzip -q crashverse-dev-build-3-input-config-fix.zip -d extracted
+      PROJECT_PATH="extracted/crashverse-dev-build-3"
+
+      if [ ! -f "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt" ]; then
+        echo "Unity project not found at expected path."
+        find extracted -name ProjectVersion.txt
+        exit 1
+      fi
+
+      echo "PROJECT_PATH=$PROJECT_PATH" >> "$GITHUB_ENV"
+      cat "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
+
+  - name: Build Android APK
+    uses: game-ci/unity-builder@v4
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    with:
+      projectPath: extracted/crashverse-dev-build-3
+      targetPlatform: Android
+      unityVersion: 2022.3.50f1
+      buildName: CRASHVERSE
+      buildsPath: build
+
+  - name: Upload APK artifact
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: crashverse-android-build
+      path: build/Android/**/*.apk
+      if-no-files-found: warn
+      retention-days: 14
